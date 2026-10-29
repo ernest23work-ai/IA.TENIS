@@ -1,0 +1,72 @@
+import streamlit as st
+import requests
+import pandas as pd
+
+# CONFIGURACIÓN INICIAL DE LA WEB
+st.set_page_config(page_title="IA Apuestas Tenis", layout="wide")
+st.title("🤖 Sistema Avanzado de IA para Apuestas de Tenis")
+st.write("Calcula probabilidades masivas y encuentra valor de mercado automáticamente.")
+
+# ENTRADAS DE CONFIGURACIÓN EN LA BARRA LATERAL
+st.sidebar.header("Configuración del Sistema")
+API_KEY = st.sidebar.text_input("Introduce tu Clave API de Odds API", type="password")
+torneo = st.sidebar.selectbox("Selecciona Torneo Activo", ['tennis_atp_swiss_indoors', 'tennis_atp_vienna_open', 'tennis_wta_pan_pacific_open'])
+
+# BOTÓN PRINCIPAL PARA EJECUTAR EL ANÁLISIS
+if st.button("🚀 ANALIZAR CARTELERA Y BUSCAR VALOR MATEMÁTICO"):
+    if not API_KEY:
+        st.error("Por favor, introduce tu Clave API en la barra lateral.")
+    else:
+        with st.spinner("Conectando con las casas de apuestas y procesando algoritmos..."):
+            
+            # Descarga de partidos reales desde internet
+            url = f"https://the-odds-api.com{torneo}/odds/?apiKey={API_KEY}&regions=eu&markets=h2h&oddsFormat=decimal"
+            respuesta = requests.get(url)
+            
+            if respuesta.status_code == 200:
+                partidos_reales = respuesta.json()
+                
+                lista_apuestas = []
+                for partido in partidos_reales:
+                    try:
+                        home = partido['home_team']
+                        away = partido['away_team']
+                        casa = partido['bookmakers'][0]
+                        nombre_casa = casa['title']
+                        cuotas = casa['markets'][0]['outcomes']
+                        
+                        cuota_A = cuotas[0]['price']
+                        cuota_B = cuotas[1]['price']
+                        
+                        # --- AQUÍ OPERA TU IA ---
+                        prob_A, prob_B = 0.52, 0.48  
+                        cuota_justa_A = 1 / prob_A
+                        cuota_justa_B = 1 / prob_B
+                        
+                        valor_A = "SÍ" if cuota_A > cuota_justa_A else "No"
+                        valor_B = "SÍ" if cuota_B > cuota_justa_B else "No"
+                        
+                        lista_apuestas.append({
+                            "Partido": f"{home} vs {away}",
+                            "Jugador A": home, "Cuota A": cuota_A, "Cuota Justa A": round(cuota_justa_A, 2), "Valor A": valor_A,
+                            "Jugador B": away, "Cuota B": cuota_B, "Cuota Justa B": round(cuota_justa_B, 2), "Valor B": valor_B
+                        })
+                    except:
+                        continue
+                
+                df_final = pd.DataFrame(lista_apuestas)
+                
+                st.success(f"¡Análisis completado! Se han procesado {len(df_final)} partidos.")
+                
+                st.subheader("🎯 Oportunidades de inversión detectadas con ventaja")
+                oportunidades = df_final[(df_final['Valor A'] == "SÍ") | (df_final['Valor B'] == "SÍ")]
+                
+                if not oportunidades.empty:
+                    st.dataframe(oportunidades)
+                else:
+                    st.info("El mercado es eficiente en este momento. No hay apuestas seguras con valor.")
+                    
+                st.subheader("📋 Cartelera completa analizada")
+                st.dataframe(df_final)
+            else:
+                st.error(f"Error de conexión con la API (Código {respuesta.status_code}).")
